@@ -1,25 +1,30 @@
 # USE ASF IN COIMBRA (Edited 20191129)
 New functionality was implemented to use:
-  -> a CedrusResponseBox (RB-730 series)
-  -> a custom made button box
-  -> serial trigger collection from the Siemens Prisma scanner and response collection from a 4 button Lumina device.
+1. a CedrusResponseBox (RB-730 series)
+2. a custom made button box
+3. serial trigger collection from the Siemens Prisma scanner and response collection from a 4 button Lumina device.
 
 You need the following parameters to use the abovementioned devices:
-a. CedrusResponseBox
-  Cfg.responseDevice = 'CEDRUSSERIAL';
-  Cfg.serialPortName = <port name>;
-  Cfg.responseType = 'buttonDownCedrus';
-  
-b. Custom built response box
-  Cfg.responseDevice = 'CUSTOMPARALLEL';
+1. CedrusResponseBox<br/>
+```matlab
+  Cfg.responseDevice = 'CEDRUSSERIAL';<br/>
+  Cfg.serialPortName = 'your port name';<br/>
+  Cfg.responseType = 'buttonDownCedrus';<br/>
+  ```
+2. Custom built response box<br/>
+```matlab
+  Cfg.responseDevice = 'CUSTOMPARALLEL';<br/>
+```
 
-c. at the Scanner:
-  Cfg.synchToScanner = 1;
-  Cfg.synchToScannerPort = 'SCANNERCOIMBRA';
-  Cfg.scannerPortName = 'COM2'; % assign the correct port here if the scanner is not COM2 by default
-  Cfg.responseDevice = 'LUMINACOIMBRA';
-  Cfg.serialPortName = 'COM3';
-  Cfg.responseType = 'buttonDown';
+3. at the Scanner:<br/>
+```matlab
+  Cfg.synchToScanner = 1;<br/>
+  Cfg.synchToScannerPort = 'SCANNERCOIMBRA';<br/>
+  Cfg.scannerPortName = 'COM2'; % assign the correct port here if the scanner is not COM2 by default<br/>
+  Cfg.responseDevice = 'LUMINACOIMBRA';<br/>
+  Cfg.serialPortName = 'COM3';<br/>
+  Cfg.responseType = 'buttonDown';<br/>
+```
 
 # asf
 asf is a tool for presenting visual, auditory, and tactile stimuli in behavioural experiments under Windows, Linux and OSX using the Psychophysics Toolbox www.psychtoolbox.org and Matlab. It provides a framework for connecting with data acquisition devices such as MRI- and MEG/EEG scanners, and with stimulation devices such as TMS and tactile stimulators.
