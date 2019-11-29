@@ -7,23 +7,23 @@ New functionality was implemented to use:
 You need the following parameters to use the abovementioned devices:
 1. CedrusResponseBox<br/>
 ```matlab
-  Cfg.responseDevice = 'CEDRUSSERIAL';<br/>
-  Cfg.serialPortName = 'your port name';<br/>
-  Cfg.responseType = 'buttonDownCedrus';<br/>
+  Cfg.responseDevice = 'CEDRUSSERIAL';
+  Cfg.serialPortName = 'your port name';
+  Cfg.responseType = 'buttonDownCedrus';
   ```
 2. Custom built response box<br/>
 ```matlab
-  Cfg.responseDevice = 'CUSTOMPARALLEL';<br/>
+  Cfg.responseDevice = 'CUSTOMPARALLEL';
 ```
 
 3. at the Scanner:<br/>
 ```matlab
-  Cfg.synchToScanner = 1;<br/>
-  Cfg.synchToScannerPort = 'SCANNERCOIMBRA';<br/>
-  Cfg.scannerPortName = 'COM2'; % assign the correct port here if the scanner is not COM2 by default<br/>
-  Cfg.responseDevice = 'LUMINACOIMBRA';<br/>
-  Cfg.serialPortName = 'COM3';<br/>
-  Cfg.responseType = 'buttonDown';<br/>
+  Cfg.synchToScanner = 1;
+  Cfg.synchToScannerPort = 'SCANNERCOIMBRA';
+  Cfg.scannerPortName = 'COM2'; % assign the correct port here if the scanner is not COM2 by default
+  Cfg.responseDevice = 'LUMINACOIMBRA';
+  Cfg.serialPortName = 'COM3';
+  Cfg.responseType = 'buttonDown';
 ```
 
 # asf
