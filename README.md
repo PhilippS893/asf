@@ -4,7 +4,10 @@ New functionality was implemented to use:
 2. a custom made button box
 3. serial trigger collection from the Siemens Prisma scanner and response collection from a 4 button Lumina device.
 
-You need the following parameters to use the abovementioned devices:
+### Lumina Device
+![Lumina button box at the scanner in Coimbra](https://www.cedrus.com/lumina/images/lu400_pair-220.png)
+
+### Using the devices
 1. CedrusResponseBox<br/>
 ```matlab
   Cfg.responseDevice = 'CEDRUSSERIAL';
