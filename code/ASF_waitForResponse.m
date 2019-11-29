@@ -4,10 +4,13 @@
 %WRAPPER FUNCTION THAT CHECKS FOR A RESPONSE USING:
 %MOUSE
 %LUMINA
+%CEDRUS RESPONSE BOX
 %CRS RESPONSE BOX - NOT YET IMPLEMENTED
 %KEYBOARD 
 %20071024 JS FIXED BUG THAT NOT PRESSING A RESPONSE BUTTON COULD LEAD TO PROGRAM STOP
 %20081126 JS FIXED BUG THAT RT WAS NOT RECORDED USING THE LUMINA BOX
+%20191017 PS ADDED RESPONSE COLLECTION FOR CEDRUS HARDWARE (with RB-730)
+%20191128 PS ADDED WORKAROUND FOR LUMINASERIAL
 function [x, y, buttons, t0, t1, extraKey] = ASF_waitForResponse(Cfg, timeout)
 if~isfield(Cfg, 'responseType'), Cfg.responseType = 'buttonDown'; else end;
 extraKey = NaN;
@@ -23,7 +26,27 @@ switch Cfg.responseDevice
     case 'LUMINAPARALLEL'
         [x, y, buttons, t0, t1] = WaitForLuminaPress(Cfg.Hardware.parallel.mydio_in, timeout);
 
-    case {'LUMINASERIAL', 'ARDUINOSERIAL'}
+    % ADDED BY PHILIPP SEIDEL (20191129)
+    % THIS CASE USES A DEVICE PLUGGED INTO THE PARALLEL PORT. IT REQUIRES
+    % THE IO64.MEX AND INPOUT.DLL. ONLY WORKS ON WINDOWS MACHINES.
+    case 'CUSTOMPARALLEL'
+        x = [];
+        y = [];
+        global hwInfo;
+        if isempty(hwInfo)
+            hwInfo.ioObject = io64;
+            hwInfo.address = Cfg.Hardware.parallel.address;
+            % check the status of the parallel port
+            % if status = 0 then this means your port is active and working. Otherwise
+            % you need to do some error checking.
+            status = io64( hwInfo.ioObject );
+            if status ~= 0
+                error('Connection to parallel port failed.');
+            end
+        end
+        [buttons, t0, t1] = WaitForCustomPress(hwInfo, timeout);
+        
+    case {'LUMINASERIAL', 'ARDUINOSERIAL', 'CEDRUSSERIAL', 'LUMINACOIMBRA'}  % adapted by philipp seidel 20191017
         x = [];
         y = [];
         switch Cfg.responseType
@@ -31,8 +54,10 @@ switch Cfg.responseDevice
                 [buttons, t0, t1] = WaitForSerialBoxPress(Cfg, timeout);
             case 'buttonUp'
                 [buttons, t0, t1] = WaitForSerialBoxButtonUp(Cfg, timeout);
+            case 'buttonDownCedrus' % added by philipp seidel 20191017
+                [buttons, t0, t1] = WaitForSerialCedrusPress(Cfg, timeout);
             otherwise
-                error('LUMINASERIAL Unknown response type %s', Cfg.responseType);
+                error('%s Unknown response type %s', Cfg.responseDevice, Cfg.responseType);
         end
 
     case 'KEYBOARD'
@@ -64,6 +89,82 @@ if sum(buttons) > 1
     y = [];
 end
 
+%% WaitForCustomPress
+% ADDED 20191121 BY Philipp Seidel (philipp.seidel@gmx.net)
+function [buttons, t0, t1] = WaitForCustomPress(hwInfo, timeout)
+
+% the decimal values below indicate which button was pressed.
+% 93 = left; 253 = right; 109 = foot
+% These value refere to the following pins on the parallel port:
+% left = pin 12 (paper out)
+% right= pin 11 (!busy)
+% foot = pin 13 (select)
+button_location = [ 93 253 109 ];
+
+% read the initial state from the port. Standard is 125
+init_state = io64( hwInfo.ioObject, hwInfo.address+1 );
+% unfortunately humans cant release buttons fast enough, thus we have to
+% wait for the button release in a while loop such that the onset of t0 is
+% accruate enough
+while init_state ~= 125
+    init_state = io64( hwInfo.ioObject, hwInfo.address+1 );
+end
+
+t0 = GetSecs;
+t1 = t0;
+while (t1 - t0) <= timeout
+    resp = io64( hwInfo.ioObject, hwInfo.address+1 );
+    if resp ~= init_state
+        % get the time of the response
+        t1 = GetSecs;
+        % break out of the while loop
+        break;
+    end
+    t1 = GetSecs;
+end
+
+% check which button was pressed.
+% This will be a logical vector with 1x3 dimensions.
+% The location of the 1 indicates which button was pressed.
+% 100 = left
+% 010 = right
+% 001 = foot
+buttons = (resp==button_location);
+
+
+%% WaitForSerialCedrusPress
+% ADDED 20191017 BY Philipp Seidel (philipp.seidel@gmx.net)
+% MAYBE THIS CAN BE DONE PRETIER BUT FOR NOW IT IS WORKING
+function [buttons, t0, t1] = WaitForSerialCedrusPress(Cfg, timeout)
+
+handle = Cfg.Hardware.Serial.cedrusHandle; % assign cedrus handle for easier readability
+buttons(4) = 0;
+t0 = GetSecs;
+t1 = t0;
+evt = [];
+CedrusResponseBox('FlushEvents', handle);
+while ((t1 - t0) < timeout) && isempty(evt)% wait for press
+    evt = CedrusResponseBox('GetButtons', handle);
+    %T1 WILL EQUAL TIMEOUT IF NO BUTTON HAS BEEN PRESSED WITIN TIMEOUT
+    
+    % WE HAVE TO TAKE CARE OF BUTTON RELEASE ACTIONS.
+    % UNFORTUNATELY CedrusResponseBox FUNCTIONS DO NOT ALLOW US TO WAIT A
+    % CERTAIN DURATION TO DETECT 'BUTTON PRESSES', THUS WE NEED THIS IF
+    % STATEMENT HERE
+    if ~isempty(evt) && evt.action~=0
+        t1 = GetSecs;
+    else
+        t1 = GetSecs;
+        evt = [];
+    end
+end
+
+if ~isempty(evt)
+    buttons(evt.button-1) = 1; % cedrus starts counting from 2
+end
+% end of WaitForSerialCedrusPress
+
+%% WaitForVoiceKeyPPA
 function [buttons, t0, t1] = WaitForVoiceKeyPPA(Cfg, timeout)
 buttons = [0, 0, 0, 0, 0, 1]; %BUTTON 6
 t0 = GetSecs;
@@ -101,6 +202,7 @@ t1 = GetSecs;
 % wavwrite(audiodata', Cfg.Audio.f, Cfg.Audio.nBits, this_response.wavname);
 % fprintf(1, 'Done.\n');
 
+%% WaitForVoiceKey
 function [keyCode, t0, t1] = WaitForVoiceKey(Cfg, timeout)
 %buttons = 0;
 t0 = GetSecs;
@@ -217,9 +319,6 @@ for i = 1:nFiles
     ey = sqrt(y.^2);
     bl = mean(ey(1:max(find((t-t(1))<0.2))));
 
-
-
-
     cfg.FilterLengthInSamples = 100;
     b = ones(cfg.FilterLengthInSamples, 1)/cfg.FilterLengthInSamples;  % cfg.FilterLengthInSamples point averaging filter
     eyf = filtfilt(b, 1, ey); % Noncausal filtering; smothes data without delay
@@ -328,57 +427,37 @@ end
 
 
 %% WaitForSerialBoxPress
+% ADDED BY PHILIPP SEIDEL. WORKAROUND USING PSYCHTOOLBOX FUNCTIONS FOR
+% COIMBRA
 function [buttons, t0, t1] = WaitForSerialBoxPress(Cfg, timeout)
 persistent oldButtons;
-
 if isempty(oldButtons)
      oldButtons = [0, 0, 0, 0];
 end
 buttons(4) = 0;
 t0 = GetSecs;
 t1 = t0;
-% while ((~Cfg.Hardware.Serial.oSerial.BytesAvailable) && (t1 - t0)<timeout) % wait for press
-%     buttons = fgets(Cfg.Hardware.Serial.oSerial);
-%     
-%     t1 = GetSecs;
-% end
 
-while ((t1 - t0) < timeout) % wait for press
-    if Cfg.Hardware.Serial.oSerial.BytesAvailable
-        
-        sbuttons = str2num(fscanf(Cfg.Hardware.Serial.oSerial)); %#ok<ST2NM>
-        
-        %IF ONLY A SINGLE BUTTON HAS BEEN PRESSED, sbuttons WILL BE BETWEEN
-        %1 AND 4, IF SEVERAL BUTTONS HAVE BEEN PRESSED, E.G. 1 AND 4 THE
-        %RESULTING NUMBER WILL BE HIGHER THAN TEN (12, 13, 14, 23, 24, 34, 123, 234)
-        %IT MAY EVEN OCCUR THAT A BUTTON HAS BEEN PRESSED SIMULTANEOUSLY
-        %WITH A SYNCH PULSE
-        switch sbuttons
-            case {1, 2, 3, 4}
-                %TRANSFORM INTO A 4 ELEMENT VECTOR
-                buttons(sbuttons) = 1;
-                t1 = GetSecs;
-                break; %THIS INTENTIONALLY BREAKS OUT OF THE ENTIRE WHILE LOOP!
+% FLUSH FOR SAVETY
+IOPort('Flush',Cfg.Hardware.Serial.oSerial);
+[syncData,~,~] = IOPort('Read',Cfg.Hardware.Serial.oSerial);
 
-            case {15, 25, 35, 45}
-                sbuttons = (sbuttons - 5)/10;
-                %TRANSFORM INTO A 4 ELEMENT VECTOR
-                buttons(sbuttons) = 1;
-                t1 = GetSecs;
-                break; %THIS INTENTIONALLY BREAKS OUT OF THE ENTIRE WHILE LOOP!
-            case 5
-                %JUST A SYNCH
-        end
-
-%         %CLEAN UP IN CASE MONKEY GOES WILD
-%         while Cfg.Hardware.Serial.oSerial.BytesAvailable
-%             junk = fscanf(Cfg.Hardware.Serial.oSerial);
-%         end
-        
+while ((t1 - t0) < timeout) && isempty(syncData) % wait for press
+    
+    [syncData,t1,~] = IOPort('Read',Cfg.Hardware.Serial.oSerial);
+    
+    % assign the idx of the button pressed
+    % blue = 49 = left middle
+    % yellow = 50 = left index
+    % red = 52 = right middle
+    % green = 51 = right index
+    if ~isempty(syncData)
+        responseIdx = [51 52 50 49];
+        buttons(responseIdx==syncData) = 1;
     end
-    %T1 WILL EQUAL TIMEOUT IF NO BUTTON HAS BEEN PRESSED WITIN TIMEOUT
-    t1 = GetSecs;
-
+    
+    %t1 = GetSecs
+    
     buttonStateChanged = any(abs(buttons - oldButtons));
     if buttonStateChanged
         oldButtons = buttons;
@@ -386,6 +465,68 @@ while ((t1 - t0) < timeout) % wait for press
 
 end
 
+%% WaitForSerialBoxPress (OLD VERSION)
+% COMMENTED BY PHILIPP SEIDEL. FUNCTION SEEMS NOT TO WORK ANY LONGER. TRIED
+% WORKDAROUND WITH PSYCHTOOLBOX FUNCTIONS
+% function [buttons, t0, t1] = WaitForSerialBoxPress(Cfg, timeout)
+% persistent oldButtons;
+% 
+% if isempty(oldButtons)
+%      oldButtons = [0, 0, 0, 0];
+% end
+% buttons(4) = 0;
+% t0 = GetSecs;
+% t1 = t0;
+% % while ((~Cfg.Hardware.Serial.oSerial.BytesAvailable) && (t1 - t0)<timeout) % wait for press
+% %     buttons = fgets(Cfg.Hardware.Serial.oSerial);
+% %     
+% %     t1 = GetSecs;
+% % end
+% 
+% while ((t1 - t0) < timeout) % wait for press
+%     if Cfg.Hardware.Serial.oSerial.BytesAvailable
+%         
+%         sbuttons = str2num(fscanf(Cfg.Hardware.Serial.oSerial)); %#ok<ST2NM>
+%         
+%         %IF ONLY A SINGLE BUTTON HAS BEEN PRESSED, sbuttons WILL BE BETWEEN
+%         %1 AND 4, IF SEVERAL BUTTONS HAVE BEEN PRESSED, E.G. 1 AND 4 THE
+%         %RESULTING NUMBER WILL BE HIGHER THAN TEN (12, 13, 14, 23, 24, 34, 123, 234)
+%         %IT MAY EVEN OCCUR THAT A BUTTON HAS BEEN PRESSED SIMULTANEOUSLY
+%         %WITH A SYNCH PULSE
+%         switch sbuttons
+%             case {1, 2, 3, 4}
+%                 %TRANSFORM INTO A 4 ELEMENT VECTOR
+%                 buttons(sbuttons) = 1;
+%                 t1 = GetSecs;
+%                 break; %THIS INTENTIONALLY BREAKS OUT OF THE ENTIRE WHILE LOOP!
+% 
+%             case {15, 25, 35, 45}
+%                 sbuttons = (sbuttons - 5)/10;
+%                 %TRANSFORM INTO A 4 ELEMENT VECTOR
+%                 buttons(sbuttons) = 1;
+%                 t1 = GetSecs;
+%                 break; %THIS INTENTIONALLY BREAKS OUT OF THE ENTIRE WHILE LOOP!
+%             case 5
+%                 %JUST A SYNCH
+%         end
+% 
+% %         %CLEAN UP IN CASE MONKEY GOES WILD
+% %         while Cfg.Hardware.Serial.oSerial.BytesAvailable
+% %             junk = fscanf(Cfg.Hardware.Serial.oSerial);
+% %         end
+%         
+%     end
+%     %T1 WILL EQUAL TIMEOUT IF NO BUTTON HAS BEEN PRESSED WITIN TIMEOUT
+%     t1 = GetSecs;
+% 
+%     buttonStateChanged = any(abs(buttons - oldButtons));
+%     if buttonStateChanged
+%         oldButtons = buttons;
+%     end
+% 
+% end
+
+%% WaitForSerialButtonUp
 function [buttons, t0, t1] = WaitForSerialButtonUp(Cfg, timeout)
 buttons(4) = 0;
 t0 = GetSecs;
@@ -545,4 +686,3 @@ buttonStateChanged = any(abs(buttons - oldButtons));
 if buttonStateChanged
     oldButtons = buttons;
 end
-

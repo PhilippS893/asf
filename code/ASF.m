@@ -195,7 +195,11 @@ function [ExpInfo] = ASF(stimFileName, trialFileName, expName, Cfg)
 %                   port, see http://apps.usd.edu/coglab/psyc770/IO64.html, 
 %                   and Matlab Data Acquisition Toolbox's session based
 %                   interface using e.g. NI PCI 6503 card).
-%                   Digital output e.g. for EEG/MEG not yet tested.  
+%                   Digital output e.g. for EEG/MEG not yet tested.
+%20191128 CHANGED   Workaround for LUMINASERIAL waitForResponse using
+%                   Psychtoolbox' IOPort function. This was necessary as it
+%                   seems that the old functionality does not work any
+%                   longer.
 %
 %TO DOs
 %rename Cfg.hardware to Cfg.Hardware (because Hardware is a structure itself)
@@ -221,7 +225,7 @@ if ~isfield(Cfg.Instruction, 'showInstruction'), Cfg.Instruction.showInstruction
 if ~isfield(Cfg.Instruction, 'instructionSlide'), Cfg.Instruction.instructionSlide = NaN; else end 
 
 %BETA FEATURE: FIXATION CROSS PROPERTIES
-if ~isfield(Cfg, 'Fixation'), Cfg.Fixation = []; else end;
+if ~isfield(Cfg, 'Fixation'), Cfg.Fixation = []; else end
 if ~isfield(Cfg.Fixation, 'fixType'), Cfg.Fixation.fixType = 1; else end;  %1 square, 2 dot (1 is safer for certain graphics cards)
 if ~isfield(Cfg.Fixation, 'offsetX'), Cfg.Fixation.offsetX = 0; else end; 
 if ~isfield(Cfg.Fixation, 'offsetY'), Cfg.Fixation.offsetY = 0; else end; 
@@ -570,6 +574,16 @@ Cfg.currentTrialNumber = 0;
         timing_diagnosis(ExpInfo)
     end
     
+    %ADDED BY PHILIPP SEIDEL (20191129)
+    %CLOSE PORTS OPENED WITH IOPort IN THE CASE THAT THE RESPONSEDEVICE WAS
+    %ONE OF {'LUMINASERIAL', 'ARDUINOSERIAL', 'CEDRUSSERIAL', 'LUMINACOIMBRA'}
+    % NOTE: LUMINASERIAL MIGHT BE EQUIVALENT TO LUMINACOIMBRA. THIS
+    % REQUIRES TESTING DIFFERENT LUMINA DEVICES THOUGH.
+    switch Cfg.responseDevice
+        case {'LUMINASERIAL', 'ARDUINOSERIAL', 'CEDRUSSERIAL', 'LUMINACOIMBRA'}
+            IOPort('CloseAll');
+    end
+    
 % catch ME
 %     display(ME)
 %     display(ME.message)
@@ -785,6 +799,12 @@ if Cfg.synchToScanner
             % define this function
             % DO NOTHING, we initialize it
             % before in the InitResponseDevice
+            
+        % ADDED BY PHILIPP SEIDEL (20191128)
+        case 'SCANNERCOIMBRA'
+            fprintf(1,'Opening serial port to scanner...');
+            Cfg.Hardware.Serial.scanner = IOPort('OpenSerialPort', 'COM2', 'BaudRate=57600 DataBits=8 Parity=None StopBits=1 FlowControl=None');
+            fprintf(1,'done\n');
             
         case 'SIMULATE'
             %NO SPECIFIC ACTION DEFINED
@@ -1157,6 +1177,26 @@ switch Cfg.responseDevice
         fopen(Cfg.Hardware.Serial.oSerial);
         fprintf('DONE\n');
         %Cfg.Hardware.Serial.oSerial.BytesAvailable
+        
+            % ADDED BY PHILIPP SEIDEL 20191017 
+    case 'CEDRUSSERIAL'
+        if ~isfield(Cfg, 'Hardware'), Cfg.Hardware = []; else end
+        if ~isfield(Cfg.Hardware, 'Serial'), Cfg.Hardware.Serial = []; else end
+        if ~isfield(Cfg.Hardware.Serial, 'baudRate'), Cfg.Hardware.Serial.baudRate = 115200;else end
+        
+        fprintf(1, 'STARTING SERIAL COMMUNICATION WITH CEDRUS RESPONSE BOX ...');
+        % for savety close all Cedrus serial ports
+        CedrusResponseBox('CloseAll');
+        % open the port
+        Cfg.Hardware.Serial.cedrusHandle = CedrusResponseBox('Open', Cfg.serialPortName, Cfg.Hardware.Serial.baudRate);
+        fprintf(1, 'DONE\n');
+        
+    case 'LUMINACOIMBRA'
+        if ~isfield(Cfg, 'Hardware'), Cfg.Hardware = []; else end
+        if ~isfield(Cfg.Hardware, 'Serial'), Cfg.Hardware.Serial = []; else end
+        if ~isfield(Cfg.Hardware.Serial, 'baudRate'), Cfg.Hardware.Serial.baudRate = 115200;else end
+        
+        Cfg.Hardware.Serial.oSerial = IOPort('OpenSerialPort',Cfg.serialPortName);
         
     case 'ARDUINOSERIAL' %THIS IS A BAD EMULATION OF THE LUMINA BOX IN SERIAL MODE
         if ~isfield(Cfg, 'Hardware'), Cfg.Hardware = []; else end

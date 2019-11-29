@@ -99,6 +99,7 @@ if exist(fname, 'file') == 2
         %COMPATIBILITY WITH OLDER TRD FILES
         if(Cfg.hasEndRTonPageInfo)
             %VERSION THAT HAS endRTonPage
+            trialdefs(counter).trialNumber = counter; %#ok<AGROW> added by PS 20191102
             trialdefs(counter).pageNumber = aline(Cfg.userDefinedSTMcolumns+3:2:(end-3)); %#ok<AGROW>
             trialdefs(counter).pageDuration = aline(Cfg.userDefinedSTMcolumns+4:2:(end-3)); %#ok<AGROW>
             trialdefs(counter).startRTonPage = aline(end-2); %#ok<AGROW>
@@ -107,6 +108,7 @@ if exist(fname, 'file') == 2
             
         else
             %VERSION THAT DOES NOT HAVE endRTonPage
+            trialdefs(counter).trialNumber = counter; %#ok<AGROW> added by PS 20191102
             trialdefs(counter).pageNumber = aline(Cfg.userDefinedSTMcolumns+3:2:(end-2)); %#ok<AGROW>
             trialdefs(counter).pageDuration = aline(Cfg.userDefinedSTMcolumns+4:2:(end-2)); %#ok<AGROW>
             trialdefs(counter).startRTonPage = aline(end-1); %#ok<AGROW>

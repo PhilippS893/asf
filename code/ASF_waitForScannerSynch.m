@@ -17,6 +17,10 @@ switch Cfg.synchToScannerPort
         WaitForScannerSynchParallel(Cfg.Hardware.parallel.mydio_in.LuminaPort, Cfg.scannerSynchTimeOutMs);
     case 'SERIAL' %BUTTON NUMBER 5 ON SERIAL PORT (defined for Lumina Response Box)
         WaitForScannerSynchSerial(Cfg.Hardware.Serial.oSerial, Cfg.scannerSynchTimeOutMs)
+    
+    % ADDED BY PHILIPP SEIDEL (20191128)
+    case 'SCANNERCOIMBRA'
+        WaitForScannerSynchCoimbra(Cfg.Hardware.Serial.scanner, Cfg.scannerSynchTimeOutMs)
     case 'SIMULATE'
         WaitForScannerSynchSimulated(Cfg, windowPtr, Cfg.scannerSynchTimeOutMs);
     case 'KEYBOARD'
@@ -136,4 +140,23 @@ if timeoutMilliSeconds > 0
         %         KbReleaseWait;
         %     end
     end
+end
+
+function WaitForScannerSynchCoimbra(hSerial, timeoutMilliSeconds)
+
+% For some reason flushing does not work here. Why?
+%IOPort('Flush',hSerial);
+synchboxcounter = true;
+t0 = GetSecs;
+while synchboxcounter && ( (GetSecs - t0) < timeoutMilliSeconds/1000)
+    [triggerSynchBox, ~, ~] = IOPort('Read', hSerial);
+    
+    if isempty(triggerSynchBox)
+        synchboxcounter = true;
+    else
+        % if a signal was sent break out of the while loop and continue
+        % with starting the experiment.
+        synchboxcounter = false;
+    end
+    
 end
