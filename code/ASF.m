@@ -802,8 +802,12 @@ if Cfg.synchToScanner
             
         % ADDED BY PHILIPP SEIDEL (20191128)
         case 'SCANNERCOIMBRA'
+            if ~isfield(Cfg, 'Hardware'), Cfg.Hardware = []; else end
+            if ~isfield(Cfg.Hardware, 'Serial'), Cfg.Hardware.Serial = []; else end
+            if ~isfield(Cfg,'scannerPortName'), Cfg.scannerPortName = 'COM2'; else end
             fprintf(1,'Opening serial port to scanner...');
-            Cfg.Hardware.Serial.scanner = IOPort('OpenSerialPort', 'COM2', 'BaudRate=57600 DataBits=8 Parity=None StopBits=1 FlowControl=None');
+            Cfg.Hardware.Serial.scanner = IOPort('OpenSerialPort', Cfg.scannerPortName,...
+                'BaudRate=57600 DataBits=8 Parity=None StopBits=1 FlowControl=None');
             fprintf(1,'done\n');
             
         case 'SIMULATE'
